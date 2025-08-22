@@ -22,8 +22,30 @@ func NewReviewService(uc *biz.ReviewUsecase, logger log.Logger) *ReviewService {
 
 func (s *ReviewService) CreateReview(ctx context.Context, req *pb.CreateReviewRequest) (*pb.CreateReviewReply, error) {
 	s.log.WithContext(ctx).Debugf("[service] CreateReview, req: %v", req)
-	review, err := s.uc.CreateReview(ctx, &model.ReviewInfo{})
-	return &pb.CreateReviewReply{ReviewId: review.ReviewID}, err
+
+	var anonymou int32 = 0
+	if req.Anonymous {
+		anonymou = 1
+	}
+
+	review, err := s.uc.CreateReview(ctx, &model.ReviewInfo{
+		UserID:       req.UserId,
+		OrderID:      req.OrderId,
+		Score:        req.Score,
+		ServiceScore: req.ServiceScore,
+		ExpressScore: req.ExpressScore,
+		Content:      req.Content,
+		PicInfo:      req.PicInfo,
+		VideoInfo:    req.VideoInfo,
+		Anonymous:    anonymou,
+		Status:       10,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.CreateReviewReply{ReviewId: review.ReviewID}, nil
 }
 func (s *ReviewService) UpdateReview(ctx context.Context, req *pb.UpdateReviewRequest) (*pb.UpdateReviewReply, error) {
 	return &pb.UpdateReviewReply{}, nil

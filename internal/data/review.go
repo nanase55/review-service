@@ -24,3 +24,11 @@ func (r *reviewRepo) SaveReview(ctx context.Context, review *model.ReviewInfo) (
 	err := r.data.q.ReviewInfo.WithContext(ctx).Save(review)
 	return review, err
 }
+
+// GetReviewByOrderId 根据订单Id查询评价
+func (r *reviewRepo) GetReviewByOrderId(ctx context.Context, orderId int64) ([]*model.ReviewInfo, error) {
+	return r.data.q.ReviewInfo.
+		WithContext(ctx).
+		Where(r.data.q.ReviewInfo.OrderID.Eq(orderId)).
+		Find()
+}

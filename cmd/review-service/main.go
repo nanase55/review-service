@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"review-service/internal/conf"
+	"review-service/pkg/snowflake"
 
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/config"
@@ -26,11 +27,28 @@ var (
 	// flagconf is the config flag.
 	flagconf string
 
+	logPath string
+
 	id, _ = os.Hostname()
 )
 
 func init() {
 	flag.StringVar(&flagconf, "conf", "../../configs", "config path, eg: -conf config.yaml")
+	flag.StringVar(&logPath, "log", "../../logs", "log path")
+}
+
+func createLog() *os.File {
+	// 先创建日志目录
+	if err := os.MkdirAll(logPath, 0755); err != nil {
+		panic(err)
+	}
+
+	// O_TRUNC 清空日志文件内容
+	logFile, err := os.OpenFile(logPath+"/review_service.log", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		panic(err)
+	}
+	return logFile
 }
 
 func newApp(logger log.Logger, gs *grpc.Server, hs *http.Server) *kratos.App {
@@ -49,7 +67,8 @@ func newApp(logger log.Logger, gs *grpc.Server, hs *http.Server) *kratos.App {
 
 func main() {
 	flag.Parse()
-	logger := log.With(log.NewStdLogger(os.Stdout),
+
+	logger := log.With(log.NewStdLogger(createLog()),
 		"ts", log.DefaultTimestamp,
 		"caller", log.DefaultCaller,
 		"service.id", id,
@@ -79,6 +98,11 @@ func main() {
 		panic(err)
 	}
 	defer cleanup()
+
+	// 初始化snowflake
+	if err := snowflake.Init(bc.Snowflake.GetStartTime(), bc.Snowflake.GetMachineId()); err != nil {
+		panic(err)
+	}
 
 	// start and wait for stop signal
 	if err := app.Run(); err != nil {
