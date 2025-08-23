@@ -2,8 +2,7 @@ package biz
 
 import (
 	"context"
-	"errors"
-	"fmt"
+	v1 "review-service/api/review/v1"
 	"review-service/internal/data/model"
 	"review-service/pkg/snowflake"
 
@@ -34,10 +33,10 @@ func (r *ReviewUsecase) CreateReview(ctx context.Context, review *model.ReviewIn
 	// 1.1 已评价的订单不能再评价
 	reviews, err := r.repo.GetReviewByOrderId(ctx, review.OrderID)
 	if err != nil {
-		return nil, errors.New("查询数据库失败")
+		return nil, v1.ErrorDbFailed("查询数据库失败")
 	}
 	if len(reviews) > 0 {
-		return nil, fmt.Errorf("订单:%d已评价", review.OrderID)
+		return nil, v1.ErrorOrderReviewed("订单:%d已评价", review.OrderID)
 	}
 	// 2. 生成review Id (雪花算法 或 "分布式Id生成服务")
 	review.ReviewID = snowflake.GenId()
