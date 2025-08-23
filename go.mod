@@ -6,6 +6,7 @@ toolchain go1.24.2
 
 require (
 	github.com/bwmarrin/snowflake v0.3.0
+	github.com/envoyproxy/protoc-gen-validate v1.0.4
 	github.com/go-kratos/kratos/v2 v2.8.0
 	github.com/google/wire v0.6.0
 	go.uber.org/automaxprocs v1.5.1
