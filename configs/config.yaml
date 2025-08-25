@@ -16,3 +16,7 @@ data:
 snowflake: 
   start_time: "2025-08-22"
   machine_id: 1   # 通常从环境变量加载
+registry:
+  consul:
+    address: 127.0.0.1:8500
+    scheme: http
