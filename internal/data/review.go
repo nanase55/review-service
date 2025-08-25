@@ -180,8 +180,9 @@ func (r *reviewRepo) AuditAppeal(ctx context.Context, param *biz.AuditAppealPara
 			WithContext(ctx).
 			Where(r.data.q.ReviewAppealInfo.AppealID.Eq(param.AppealID)).
 			Updates(map[string]any{
-				"status":  param.Status,
-				"op_user": param.OpUser,
+				"status":    param.Status,
+				"op_user":   param.OpUser,
+				"op_reason": param.OpReason,
 			}); err != nil {
 			return err
 		}

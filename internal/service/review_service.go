@@ -156,6 +156,7 @@ func (s *ReviewService) AuditAppeal(ctx context.Context, req *pb.AuditAppealRequ
 		AppealID: req.GetAppealId(),
 		OpUser:   req.GetOpUser(),
 		Status:   req.GetStatus(),
+		OpReason: req.GetOpReason(),
 	})
 	if err != nil {
 		return nil, err

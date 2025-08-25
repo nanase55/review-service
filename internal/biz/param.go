@@ -35,4 +35,5 @@ type AuditAppealParam struct {
 	AppealID int64
 	OpUser   string
 	Status   int32
+	OpReason string
 }
