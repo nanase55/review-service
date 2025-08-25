@@ -7,17 +7,17 @@ info:
     description: 定义评价服务
     version: 0.0.1
 paths:
-    v1/review:
+    /v1/appeal/audit:
         post:
             tags:
                 - Review
-            description: 创建评价
-            operationId: Review_CreateReview
+            description: O端评价申诉审核
+            operationId: Review_AuditAppeal
             requestBody:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/CreateReviewRequest'
+                            $ref: '#/components/schemas/api.review.v1.AuditAppealRequest'
                 required: true
             responses:
                 "200":
@@ -25,21 +25,194 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/CreateReviewReply'
-                default:
-                    description: Default error response
+                                $ref: '#/components/schemas/api.review.v1.AuditAppealReply'
+    /v1/review/appeal:
+        post:
+            tags:
+                - Review
+            description: B端申诉评价
+            operationId: Review_AppealReview
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.review.v1.AppealReviewRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/Status'
+                                $ref: '#/components/schemas/api.review.v1.AppealReviewReply'
+    /v1/review/audit:
+        post:
+            tags:
+                - Review
+            description: O端审核评价
+            operationId: Review_AuditReview
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.review.v1.AuditReviewRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.review.v1.AuditReviewReply'
+    /v1/review/reply:
+        post:
+            tags:
+                - Review
+            description: B端回复评价
+            operationId: Review_ReplyReview
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.review.v1.ReplyReviewRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.review.v1.ReplyReviewReply'
+    /v1/review/{reviewId}:
+        get:
+            tags:
+                - Review
+            description: C端获取评价详情
+            operationId: Review_GetReview
+            parameters:
+                - name: reviewId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.review.v1.GetReviewReply'
+    /v1/{userId}/reviews:
+        get:
+            tags:
+                - Review
+            description: C端查看userId下所有评价
+            operationId: Review_ListReviewByUserId
+            parameters:
+                - name: userId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.review.v1.ListReviewByUserIdReply'
+    v1/review:
+        post:
+            tags:
+                - Review
+            description: C端创建评价
+            operationId: Review_CreateReview
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.review.v1.CreateReviewRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.review.v1.CreateReviewReply'
 components:
     schemas:
-        CreateReviewReply:
+        api.review.v1.AppealReviewReply:
+            type: object
+            properties:
+                appealId:
+                    type: string
+            description: 对评价进行申诉的返回值
+        api.review.v1.AppealReviewRequest:
             type: object
             properties:
                 reviewId:
                     type: string
-        CreateReviewRequest:
+                storeId:
+                    type: string
+                reason:
+                    type: string
+                content:
+                    type: string
+                picInfo:
+                    type: string
+                videoInfo:
+                    type: string
+            description: AppealReviewRequest 申诉评价的请求参数
+        api.review.v1.AuditAppealReply:
+            type: object
+            properties:
+                appealId:
+                    type: string
+            description: 对申诉进行审核的返回值
+        api.review.v1.AuditAppealRequest:
+            type: object
+            properties:
+                appealId:
+                    type: string
+                status:
+                    type: integer
+                    format: int32
+                opUser:
+                    type: string
+                opRemarks:
+                    type: string
+            description: 对申诉进行审核的请求
+        api.review.v1.AuditReviewReply:
+            type: object
+            properties:
+                reviewId:
+                    type: string
+                status:
+                    type: integer
+                    format: int32
+            description: 审核评价的返回值
+        api.review.v1.AuditReviewRequest:
+            type: object
+            properties:
+                reviewId:
+                    type: string
+                status:
+                    type: integer
+                    format: int32
+                opUser:
+                    type: string
+                opReason:
+                    type: string
+                opRemarks:
+                    type: string
+            description: 审核评价的请求
+        api.review.v1.CreateReviewReply:
+            type: object
+            properties:
+                reviewId:
+                    type: string
+        api.review.v1.CreateReviewRequest:
             type: object
             properties:
                 userId:
@@ -63,29 +236,67 @@ components:
                     type: string
                 anonymous:
                     type: boolean
-        GoogleProtobufAny:
+        api.review.v1.GetReviewReply:
             type: object
             properties:
-                '@type':
-                    type: string
-                    description: The type of the serialized message.
-            additionalProperties: true
-            description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message.
-        Status:
+                data:
+                    $ref: '#/components/schemas/api.review.v1.ReviewInfo'
+            description: 获取评价详情的响应
+        api.review.v1.ListReviewByUserIdReply:
             type: object
             properties:
-                code:
-                    type: integer
-                    description: The status code, which should be an enum value of [google.rpc.Code][google.rpc.Code].
-                    format: int32
-                message:
-                    type: string
-                    description: A developer-facing error message, which should be in English. Any user-facing error message should be localized and sent in the [google.rpc.Status.details][google.rpc.Status.details] field, or localized by the client.
-                details:
+                list:
                     type: array
                     items:
-                        $ref: '#/components/schemas/GoogleProtobufAny'
-                    description: A list of messages that carry the error details.  There is a common set of message types for APIs to use.
-            description: 'The `Status` type defines a logical error model that is suitable for different programming environments, including REST APIs and RPC APIs. It is used by [gRPC](https://github.com/grpc). Each `Status` message contains three pieces of data: error code, error message, and error details. You can find out more about this error model and how to work with it in the [API Design Guide](https://cloud.google.com/apis/design/errors).'
+                        $ref: '#/components/schemas/api.review.v1.ReviewInfo'
+            description: 用户评价列表的返回值
+        api.review.v1.ReplyReviewReply:
+            type: object
+            properties:
+                replyId:
+                    type: string
+            description: 回复评价的返回值
+        api.review.v1.ReplyReviewRequest:
+            type: object
+            properties:
+                reviewId:
+                    type: string
+                storeId:
+                    type: string
+                content:
+                    type: string
+                picInfo:
+                    type: string
+                videoInfo:
+                    type: string
+            description: 回复评价的请求
+        api.review.v1.ReviewInfo:
+            type: object
+            properties:
+                reviewId:
+                    type: string
+                userId:
+                    type: string
+                orderId:
+                    type: string
+                score:
+                    type: integer
+                    format: int32
+                serviceScore:
+                    type: integer
+                    format: int32
+                expressScore:
+                    type: integer
+                    format: int32
+                content:
+                    type: string
+                picInfo:
+                    type: string
+                videoInfo:
+                    type: string
+                status:
+                    type: integer
+                    format: int32
+            description: 评价信息
 tags:
     - name: Review

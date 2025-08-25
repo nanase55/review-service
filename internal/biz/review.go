@@ -12,6 +12,8 @@ import (
 type ReviewRepo interface {
 	SaveReview(context.Context, *model.ReviewInfo) (*model.ReviewInfo, error)
 	GetReviewByOrderId(context.Context, int64) ([]*model.ReviewInfo, error)
+	GetReviewByReviewId(context.Context, int64) (*model.ReviewInfo, error)
+	SaveReply(context.Context, *model.ReviewReplyInfo) (*model.ReviewReplyInfo, error)
 }
 
 type ReviewUsecase struct {
@@ -28,7 +30,7 @@ func NewReviewUsecase(repo ReviewRepo, logger log.Logger) *ReviewUsecase {
 
 // CreateReview 创建评价
 func (r *ReviewUsecase) CreateReview(ctx context.Context, review *model.ReviewInfo) (*model.ReviewInfo, error) {
-	r.log.WithContext(ctx).Debugf("[biz] CreateReview, req: %v", review)
+	r.log.WithContext(ctx).Debugf("[biz] CreateReview, req: %#v", review)
 	// 1. 数据校验: 业务参数校验
 	// 1.1 已评价的订单不能再评价
 	reviews, err := r.repo.GetReviewByOrderId(ctx, review.OrderID)
@@ -42,7 +44,29 @@ func (r *ReviewUsecase) CreateReview(ctx context.Context, review *model.ReviewIn
 	review.ReviewID = snowflake.GenId()
 	// 3. 查询订单和商品快照信息
 	// 可能需要获取订单和商品的信息,通过RPC调用
-
+	review.StoreID = 1
 	// 4. 拼装数据入库
 	return r.repo.SaveReview(ctx, review)
+}
+
+// GetReview 根据评价ID获取评价
+func (uc *ReviewUsecase) GetReview(ctx context.Context, reviewID int64) (*model.ReviewInfo, error) {
+	uc.log.WithContext(ctx).Debugf("[biz] GetReview reviewID:%#v", reviewID)
+	return uc.repo.GetReviewByReviewId(ctx, reviewID)
+}
+
+// CreateReply 创建评价回复
+func (uc *ReviewUsecase) CreateReply(ctx context.Context, param *ReplyParam) (*model.ReviewReplyInfo, error) {
+	uc.log.WithContext(ctx).Debugf("[biz] CreateReply param:%#v", param)
+
+	reply := &model.ReviewReplyInfo{
+		ReplyID:   snowflake.GenId(),
+		ReviewID:  param.ReviewID,
+		StoreID:   param.StoreID,
+		Content:   param.Content,
+		PicInfo:   param.PicInfo,
+		VideoInfo: param.VideoInfo,
+	}
+
+	return uc.repo.SaveReply(ctx, reply)
 }

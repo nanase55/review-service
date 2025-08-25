@@ -47,7 +47,7 @@ api:
 .PHONY: server
 # generate server code
 server:
-	kratos proto server $(API_PROTO_FILES)
+	kratos proto server api/review/v1/review.proto -t internal/service
 
 .PHONY: validate
 # generate validate proto
