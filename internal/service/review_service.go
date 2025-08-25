@@ -74,9 +74,27 @@ func (s *ReviewService) GetReview(ctx context.Context, req *pb.GetReviewRequest)
 }
 
 func (s *ReviewService) ListReviewByUserId(ctx context.Context, req *pb.ListReviewByUserIdRequest) (*pb.ListReviewByUserIdReply, error) {
-	s.log.WithContext(ctx).Debugf("ListReviewByUserId req:%#v\n", req)
-
-	return &pb.ListReviewByUserIdReply{}, nil
+	s.log.WithContext(ctx).Debugf("[service] ListReviewByUserID req:%#v\n", req)
+	dataList, err := s.uc.ListReviewByUserID(ctx, req.GetUserId(), int(req.GetPage()), int(req.GetSize()))
+	if err != nil {
+		return nil, err
+	}
+	list := make([]*pb.ReviewInfo, 0, len(dataList))
+	for _, review := range dataList {
+		list = append(list, &pb.ReviewInfo{
+			ReviewId:     review.ReviewID,
+			UserId:       review.UserID,
+			OrderId:      review.OrderID,
+			Score:        review.Score,
+			ServiceScore: review.ServiceScore,
+			ExpressScore: review.ExpressScore,
+			Content:      review.Content,
+			PicInfo:      review.PicInfo,
+			VideoInfo:    review.VideoInfo,
+			Status:       review.Status,
+		})
+	}
+	return &pb.ListReviewByUserIdReply{List: list}, nil
 }
 
 func (s *ReviewService) ReplyReview(ctx context.Context, req *pb.ReplyReviewRequest) (*pb.ReplyReviewReply, error) {
@@ -97,11 +115,50 @@ func (s *ReviewService) ReplyReview(ctx context.Context, req *pb.ReplyReviewRequ
 }
 
 func (s *ReviewService) AppealReview(ctx context.Context, req *pb.AppealReviewRequest) (*pb.AppealReviewReply, error) {
-	return &pb.AppealReviewReply{}, nil
+	s.log.WithContext(ctx).Debugf("[service] AppealReview req:%#v\n", req)
+	ret, err := s.uc.AppealReview(ctx, &biz.AppealParam{
+		ReviewID:  req.GetReviewId(),
+		StoreID:   req.GetStoreId(),
+		Reason:    req.GetReason(),
+		Content:   req.GetContent(),
+		PicInfo:   req.GetPicInfo(),
+		VideoInfo: req.GetVideoInfo(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.log.WithContext(ctx).Debugf("[service] AppealReview ret:%v err:%v\n", ret, err)
+	return &pb.AppealReviewReply{AppealId: ret.AppealID}, nil
 }
+
 func (s *ReviewService) AuditReview(ctx context.Context, req *pb.AuditReviewRequest) (*pb.AuditReviewReply, error) {
-	return &pb.AuditReviewReply{}, nil
+	s.log.WithContext(ctx).Debugf("AuditReview req:%#v\n", req)
+	err := s.uc.AuditReview(ctx, &biz.AuditParam{
+		ReviewID:  req.GetReviewId(),
+		OpUser:    req.GetOpUser(),
+		OpReason:  req.GetOpReason(),
+		OpRemarks: req.GetOpRemarks(),
+		Status:    req.GetStatus(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &pb.AuditReviewReply{
+		ReviewId: req.ReviewId,
+		Status:   req.Status,
+	}, nil
 }
+
 func (s *ReviewService) AuditAppeal(ctx context.Context, req *pb.AuditAppealRequest) (*pb.AuditAppealReply, error) {
+	s.log.WithContext(ctx).Debugf("[service] AuditAppeal req:%#v\n", req)
+	err := s.uc.AuditAppeal(ctx, &biz.AuditAppealParam{
+		ReviewID: req.GetReviewID(),
+		AppealID: req.GetAppealId(),
+		OpUser:   req.GetOpUser(),
+		Status:   req.GetStatus(),
+	})
+	if err != nil {
+		return nil, err
+	}
 	return &pb.AuditAppealReply{}, nil
 }

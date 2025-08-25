@@ -6,8 +6,11 @@ import (
 	"review-service/internal/biz"
 	"review-service/internal/data/model"
 	"review-service/internal/data/query"
+	"review-service/pkg/snowflake"
 
 	"github.com/go-kratos/kratos/v2/log"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type reviewRepo struct {
@@ -87,4 +90,121 @@ func (r *reviewRepo) SaveReply(ctx context.Context, reply *model.ReviewReplyInfo
 	})
 
 	return reply, err
+}
+
+// GetReviewReply 获取评价回复
+func (r *reviewRepo) GetReviewReply(ctx context.Context, reviewID int64) (*model.ReviewReplyInfo, error) {
+	return r.data.q.ReviewReplyInfo.
+		WithContext(ctx).
+		Where(r.data.q.ReviewReplyInfo.ReviewID.Eq(reviewID)).
+		First()
+}
+
+// AuditReview 审核评价（运营对用户的评价进行审核）
+func (r *reviewRepo) AuditReview(ctx context.Context, param *biz.AuditParam) error {
+	_, err := r.data.q.ReviewInfo.
+		WithContext(ctx).
+		Where(r.data.q.ReviewInfo.ReviewID.Eq(param.ReviewID)).
+		Updates(map[string]any{
+			"status":     param.Status,
+			"op_user":    param.OpUser,
+			"op_reason":  param.OpReason,
+			"op_remarks": param.OpRemarks,
+		})
+	return err
+}
+
+// AppealReview 申诉评价（商家对用户评价进行申诉）
+func (r *reviewRepo) AppealReview(ctx context.Context, param *biz.AppealParam) (*model.ReviewAppealInfo, error) {
+	// 先查询有没有申诉
+	ret, err := r.data.q.ReviewAppealInfo.
+		WithContext(ctx).
+		Where(
+			query.ReviewAppealInfo.ReviewID.Eq(param.ReviewID),
+			query.ReviewAppealInfo.StoreID.Eq(param.StoreID),
+		).First()
+	r.log.Debugf("AppealReview query, ret:%v err:%v", ret, err)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		// 其他查询错误
+		return nil, err
+	}
+	if err == nil && ret.Status > 10 {
+		return nil, errors.New("该评价已有审核过的申诉记录")
+	}
+
+	// 有申诉记录但没有审核 或者 没有申诉记录，需要创建
+	appeal := &model.ReviewAppealInfo{
+		ReviewID:  param.ReviewID,
+		StoreID:   param.StoreID,
+		Status:    10,
+		Reason:    param.Reason,
+		Content:   param.Content,
+		PicInfo:   param.PicInfo,
+		VideoInfo: param.VideoInfo,
+	}
+	if ret != nil {
+		appeal.AppealID = ret.AppealID
+	} else {
+		appeal.AppealID = snowflake.GenId()
+	}
+	err = r.data.q.ReviewAppealInfo.
+		WithContext(ctx).
+		// MySQL 的 INSERT ... ON DUPLICATE KEY UPDATE ... 语义
+		// 如果存在review_id,则更新. 否则插入记录
+		Clauses(clause.OnConflict{
+			Columns: []clause.Column{
+				{Name: "review_id"}, // ON DUPLICATE KEY
+			},
+			DoUpdates: clause.Assignments(map[string]any{ // UPDATE
+				"status":     appeal.Status,
+				"content":    appeal.Content,
+				"reason":     appeal.Reason,
+				"pic_info":   appeal.PicInfo,
+				"video_info": appeal.VideoInfo,
+			}),
+		}).
+		Create(appeal) // INSERT
+	if err != nil {
+		r.log.Errorf("AppealReview, err:%v", err)
+		return nil, err
+	}
+
+	return appeal, err
+}
+
+// AuditAppeal 审核申诉（运营对商家的申诉进行审核，审核通过会隐藏该评价）
+func (r *reviewRepo) AuditAppeal(ctx context.Context, param *biz.AuditAppealParam) error {
+	err := r.data.q.Transaction(func(tx *query.Query) error {
+		// 申诉表
+		if _, err := tx.ReviewAppealInfo.
+			WithContext(ctx).
+			Where(r.data.q.ReviewAppealInfo.AppealID.Eq(param.AppealID)).
+			Updates(map[string]any{
+				"status":  param.Status,
+				"op_user": param.OpUser,
+			}); err != nil {
+			return err
+		}
+		// 评价表
+		if param.Status == 20 { // 申诉通过则需要隐藏评价
+			if _, err := tx.ReviewInfo.WithContext(ctx).
+				Where(tx.ReviewInfo.ReviewID.Eq(param.ReviewID)).
+				Update(tx.ReviewInfo.Status, 40); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return err
+}
+
+// ListReviewByUserID 根据userID查询所有评价
+func (r *reviewRepo) ListReviewByUserID(ctx context.Context, userID int64, offset, limit int) ([]*model.ReviewInfo, error) {
+	return r.data.q.ReviewInfo.
+		WithContext(ctx).
+		Where(r.data.q.ReviewInfo.UserID.Eq(userID)).
+		Order(r.data.q.ReviewInfo.ID.Desc()).
+		Limit(limit).
+		Offset(offset).
+		Find()
 }
