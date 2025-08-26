@@ -39,3 +39,8 @@ bin/
 
 #
 *.log
+
+# 忽略所有 Go 的 protobuf 生成文件
+*.pb.go
+*_grpc.pb.go
+*_http.pb.go
