@@ -7,10 +7,11 @@ import (
 	"review-service/pkg/snowflake"
 
 	"github.com/go-kratos/kratos/v2/log"
+	"golang.org/x/time/rate"
 )
 
 type ReviewRepo interface {
-	SaveReview(context.Context, *model.ReviewInfo) (*model.ReviewInfo, error)
+	SaveReview(context.Context, *model.ReviewInfo) error
 	GetReviewByOrderId(context.Context, int64) ([]*model.ReviewInfo, error)
 	GetReviewByReviewId(context.Context, int64) (*model.ReviewInfo, error)
 	SaveReply(context.Context, *model.ReviewReplyInfo) (*model.ReviewReplyInfo, error)
@@ -18,40 +19,49 @@ type ReviewRepo interface {
 	AuditReview(context.Context, *AuditParam) error
 	AppealReview(context.Context, *AppealParam) (*model.ReviewAppealInfo, error)
 	AuditAppeal(context.Context, *AuditAppealParam) error
-	ListReviewByUserID(ctx context.Context, userID int64, offset, limit int) ([]*model.ReviewInfo, error)
+	ListReviewByUserID(ctx context.Context, userID, offset int64, limit int) ([]*model.ReviewInfo, error)
 }
 
 type ReviewUsecase struct {
-	repo ReviewRepo
-	log  *log.Helper
+	repo                ReviewRepo
+	log                 *log.Helper
+	createReviewLimiter *rate.Limiter
 }
 
 func NewReviewUsecase(repo ReviewRepo, logger log.Logger) *ReviewUsecase {
 	return &ReviewUsecase{
-		repo: repo,
-		log:  log.NewHelper(logger),
+		repo:                repo,
+		log:                 log.NewHelper(logger),
+		createReviewLimiter: rate.NewLimiter(50, 100), // 每秒最多50个请求，最大突发100个
 	}
 }
 
 // CreateReview 创建评价
 func (r *ReviewUsecase) CreateReview(ctx context.Context, review *model.ReviewInfo) (*model.ReviewInfo, error) {
 	r.log.WithContext(ctx).Debugf("[biz] CreateReview, req: %#v", review)
-	// 1. 数据校验: 业务参数校验
-	// 1.1 已评价的订单不能再评价
-	reviews, err := r.repo.GetReviewByOrderId(ctx, review.OrderID)
-	if err != nil {
-		return nil, v1.ErrorDbFailed("查询数据库失败")
+	// 0. 漏桶限流
+	if !r.createReviewLimiter.Allow() {
+		return nil, v1.ErrorRateLimited("评价请求过于频繁，请稍后再试")
 	}
-	if len(reviews) > 0 {
-		return nil, v1.ErrorOrderReviewed("订单:%d已评价", review.OrderID)
-	}
-	// 2. 生成review Id (雪花算法 或 "分布式Id生成服务")
+
+	// 1. 数据处理
+	// 1.1 数据校验: 业务参数校验
+	// 比如用户是否存在、订单是否存在、用户是否有该订单等等
+
+	// 1.2 拼装数据
+	review.Status = 10
+
+	// 生成review Id (雪花算法 或 "分布式Id生成服务")
 	review.ReviewID = snowflake.GenId()
-	// 3. 查询订单和商品快照信息
-	// 可能需要获取订单和商品的信息,通过RPC调用
+
+	// 调用其他服务获取信息
 	review.StoreID = 1
-	// 4. 拼装数据入库
-	return r.repo.SaveReview(ctx, review)
+
+	if err := r.repo.SaveReview(ctx, review); err != nil {
+		return nil, err
+	}
+
+	return review, nil
 }
 
 // GetReview 根据评价ID获取评价
@@ -95,15 +105,8 @@ func (uc ReviewUsecase) AuditAppeal(ctx context.Context, param *AuditAppealParam
 }
 
 // ListReviewByUserID 根据userID分页查询评价
-func (uc ReviewUsecase) ListReviewByUserID(ctx context.Context, userID int64, page, size int) ([]*model.ReviewInfo, error) {
-	if page <= 0 {
-		page = 1
-	}
-	if size <= 0 || size > 50 {
-		size = 10
-	}
-	offset := (page - 1) * size
-	limit := size
+func (uc ReviewUsecase) ListReviewByUserID(ctx context.Context, userID, lastId int64, size int) ([]*model.ReviewInfo, error) {
 	uc.log.WithContext(ctx).Debugf("[biz] ListReviewByUserID userID:%v", userID)
-	return uc.repo.ListReviewByUserID(ctx, userID, offset, limit)
+
+	return uc.repo.ListReviewByUserID(ctx, userID, lastId, size)
 }

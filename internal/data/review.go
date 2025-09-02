@@ -3,10 +3,12 @@ package data
 import (
 	"context"
 	"errors"
+	v1 "review-service/api/review/v1"
 	"review-service/internal/biz"
 	"review-service/internal/data/model"
 	"review-service/internal/data/query"
 	"review-service/pkg/snowflake"
+	"strings"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"gorm.io/gorm"
@@ -25,9 +27,15 @@ func NewReviewRepo(data *Data, logger log.Logger) biz.ReviewRepo {
 	}
 }
 
-func (r *reviewRepo) SaveReview(ctx context.Context, review *model.ReviewInfo) (*model.ReviewInfo, error) {
-	err := r.data.q.ReviewInfo.WithContext(ctx).Save(review)
-	return review, err
+func (r *reviewRepo) SaveReview(ctx context.Context, review *model.ReviewInfo) error {
+	if err := r.data.q.ReviewInfo.WithContext(ctx).Create(review); err != nil {
+		// 唯一约束冲突
+		if strings.Contains(err.Error(), "Duplicate entry") {
+			return v1.ErrorOrderReviewed("订单: %d 已评价", review.OrderID)
+		}
+		return err
+	}
+	return nil
 }
 
 func (r *reviewRepo) GetReviewByReviewId(ctx context.Context, reviewID int64) (*model.ReviewInfo, error) {
@@ -200,12 +208,14 @@ func (r *reviewRepo) AuditAppeal(ctx context.Context, param *biz.AuditAppealPara
 }
 
 // ListReviewByUserID 根据userID查询所有评价
-func (r *reviewRepo) ListReviewByUserID(ctx context.Context, userID int64, offset, limit int) ([]*model.ReviewInfo, error) {
-	return r.data.q.ReviewInfo.
-		WithContext(ctx).
-		Where(r.data.q.ReviewInfo.UserID.Eq(userID)).
-		Order(r.data.q.ReviewInfo.ID.Desc()).
-		Limit(limit).
-		Offset(offset).
-		Find()
+func (r *reviewRepo) ListReviewByUserID(ctx context.Context, userID, lastID int64, limit int) ([]*model.ReviewInfo, error) {
+	query := r.data.q.ReviewInfo.WithContext(ctx).Where(r.data.q.ReviewInfo.UserID.Eq(userID))
+
+	// 如果有 lastID，筛选ID, 比lastID大跳过
+	if lastID > 0 {
+		query = query.Where(r.data.q.ReviewInfo.ID.Lt(lastID))
+	}
+
+	// 然后按最新的评价
+	return query.Order(r.data.q.ReviewInfo.ID.Desc()).Limit(limit).Find()
 }

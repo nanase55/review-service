@@ -44,3 +44,6 @@ bin/
 *.pb.go
 *_grpc.pb.go
 *_http.pb.go
+
+#
+docker-compose.yml
