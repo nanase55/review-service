@@ -90,7 +90,12 @@ func (s *ReviewService) ListReviewByUserId(ctx context.Context, req *pb.ListRevi
 		})
 	}
 
-	return &pb.ListReviewByUserIdReply{List: list}, nil
+	if len(dataList) > 0 {
+		lastId := dataList[len(dataList)-1].ID
+		return &pb.ListReviewByUserIdReply{List: list, LastId: lastId}, nil
+	}
+
+	return &pb.ListReviewByUserIdReply{}, nil
 }
 
 func (s *ReviewService) ReplyReview(ctx context.Context, req *pb.ReplyReviewRequest) (*pb.ReplyReviewReply, error) {

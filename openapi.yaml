@@ -102,6 +102,36 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.review.v1.GetReviewReply'
+    /v1/{size:
+        get:
+            tags:
+                - Review
+            description: C端查看userId下所有评价
+            operationId: Review_ListReviewByUserId
+            parameters:
+                - name: userId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: lastId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: size
+                  in: path
+                  required: true
+                  schema:
+                    type: integer
+                    format: int32
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.review.v1.ListReviewByUserIdReply'
     /v1/{userId}/reviews:
         get:
             tags:
@@ -262,6 +292,8 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/api.review.v1.ReviewInfo'
+                lastId:
+                    type: string
             description: 用户评价列表的返回值
         api.review.v1.ReplyReviewReply:
             type: object
