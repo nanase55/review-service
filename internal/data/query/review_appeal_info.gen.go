@@ -37,7 +37,7 @@ func newReviewAppealInfo(db *gorm.DB, opts ...gen.DOOption) reviewAppealInfo {
 	_reviewAppealInfo.Version = field.NewInt32(tableName, "version")
 	_reviewAppealInfo.AppealID = field.NewInt64(tableName, "appeal_id")
 	_reviewAppealInfo.ReviewID = field.NewInt64(tableName, "review_id")
-	_reviewAppealInfo.StoreID = field.NewInt64(tableName, "store_id")
+	_reviewAppealInfo.StoreID = field.NewString(tableName, "store_id")
 	_reviewAppealInfo.Status = field.NewInt32(tableName, "status")
 	_reviewAppealInfo.Reason = field.NewString(tableName, "reason")
 	_reviewAppealInfo.Content = field.NewString(tableName, "content")
@@ -59,15 +59,15 @@ type reviewAppealInfo struct {
 
 	ALL       field.Asterisk
 	ID        field.Int64  // 主键
-	CreateBy  field.String // 创建⽅标识
-	UpdateBy  field.String // 更新⽅标识
+	CreateBy  field.String // 创建方标识
+	UpdateBy  field.String // 更新方标识
 	CreateAt  field.Time   // 创建时间
 	UpdateAt  field.Time   // 更新时间
 	DeleteAt  field.Time   // 逻辑删除标记
 	Version   field.Int32  // 乐观锁标记
 	AppealID  field.Int64  // 回复id
 	ReviewID  field.Int64  // 评价id
-	StoreID   field.Int64  // 店铺id
+	StoreID   field.String // 店铺id
 	Status    field.Int32  // 状态:10待审核； 20申诉通过； 30申诉驳回
 	Reason    field.String // 申诉原因类别
 	Content   field.String // 申诉内容描述
@@ -102,7 +102,7 @@ func (r *reviewAppealInfo) updateTableName(table string) *reviewAppealInfo {
 	r.Version = field.NewInt32(table, "version")
 	r.AppealID = field.NewInt64(table, "appeal_id")
 	r.ReviewID = field.NewInt64(table, "review_id")
-	r.StoreID = field.NewInt64(table, "store_id")
+	r.StoreID = field.NewString(table, "store_id")
 	r.Status = field.NewInt32(table, "status")
 	r.Reason = field.NewString(table, "reason")
 	r.Content = field.NewString(table, "content")

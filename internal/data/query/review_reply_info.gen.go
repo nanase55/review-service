@@ -37,7 +37,7 @@ func newReviewReplyInfo(db *gorm.DB, opts ...gen.DOOption) reviewReplyInfo {
 	_reviewReplyInfo.Version = field.NewInt32(tableName, "version")
 	_reviewReplyInfo.ReplyID = field.NewInt64(tableName, "reply_id")
 	_reviewReplyInfo.ReviewID = field.NewInt64(tableName, "review_id")
-	_reviewReplyInfo.StoreID = field.NewInt64(tableName, "store_id")
+	_reviewReplyInfo.StoreID = field.NewString(tableName, "store_id")
 	_reviewReplyInfo.Content = field.NewString(tableName, "content")
 	_reviewReplyInfo.PicInfo = field.NewString(tableName, "pic_info")
 	_reviewReplyInfo.VideoInfo = field.NewString(tableName, "video_info")
@@ -55,16 +55,16 @@ type reviewReplyInfo struct {
 
 	ALL       field.Asterisk
 	ID        field.Int64  // 主键
-	CreateBy  field.String // 创建⽅标识
-	UpdateBy  field.String // 更新⽅标识
+	CreateBy  field.String // 创建方标识
+	UpdateBy  field.String // 更新方标识
 	CreateAt  field.Time   // 创建时间
 	UpdateAt  field.Time   // 更新时间
 	DeleteAt  field.Time   // 逻辑删除标记
 	Version   field.Int32  // 乐观锁标记
 	ReplyID   field.Int64  // 回复id
 	ReviewID  field.Int64  // 评价id
-	StoreID   field.Int64  // 店铺id
-	Content   field.String // 评价内容
+	StoreID   field.String // 店铺id
+	Content   field.String // 回复内容
 	PicInfo   field.String // 媒体信息：图⽚
 	VideoInfo field.String // 媒体信息：视频
 	ExtJSON   field.String // 信息扩展
@@ -94,7 +94,7 @@ func (r *reviewReplyInfo) updateTableName(table string) *reviewReplyInfo {
 	r.Version = field.NewInt32(table, "version")
 	r.ReplyID = field.NewInt64(table, "reply_id")
 	r.ReviewID = field.NewInt64(table, "review_id")
-	r.StoreID = field.NewInt64(table, "store_id")
+	r.StoreID = field.NewString(table, "store_id")
 	r.Content = field.NewString(table, "content")
 	r.PicInfo = field.NewString(table, "pic_info")
 	r.VideoInfo = field.NewString(table, "video_info")

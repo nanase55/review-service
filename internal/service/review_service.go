@@ -164,3 +164,44 @@ func (s *ReviewService) AuditAppeal(ctx context.Context, req *pb.AuditAppealRequ
 	}
 	return &pb.AuditAppealReply{}, nil
 }
+
+func (s *ReviewService) ListReviewByStoreAndSpu(ctx context.Context, req *pb.ListReviewByStoreAndSpuRequest) (*pb.ListReviewByStoreAndSpuReply, error) {
+	s.log.WithContext(ctx).Debugf("[service] ListReviewByStoreAndSpuRequest, req: %#v", req)
+
+	dataList, err := s.uc.ListReviewByStoreAndSpu(ctx, &biz.ListReviewBySAndSParam{
+		StoreId:       req.GetStoreId(),
+		SpuId:         req.GetSpuId(),
+		LastId:        req.GetLastId(),
+		LastSortValue: req.GetSortValue(),
+		Size:          req.GetSize(),
+		SortOrder:     req.GetSortOrder(),
+		SortField:     req.GetSortField(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	list := make([]*pb.ReviewInfo, 0, len(dataList))
+	for _, review := range dataList {
+		list = append(list, &pb.ReviewInfo{
+			ReviewId:     review.ReviewID,
+			UserId:       review.UserID,
+			OrderId:      review.OrderID,
+			Score:        review.Score,
+			ServiceScore: review.ServiceScore,
+			ExpressScore: review.ExpressScore,
+			Content:      review.Content,
+			PicInfo:      review.PicInfo,
+			VideoInfo:    review.VideoInfo,
+			Status:       review.Status,
+		})
+	}
+
+	if len(dataList) > 0 {
+		lastId := dataList[len(dataList)-1].ReviewID
+		lastScore := dataList[len(dataList)-1].Score
+		return &pb.ListReviewByStoreAndSpuReply{List: list, LastId: lastId, SortValue: lastScore}, nil
+	}
+
+	return &pb.ListReviewByStoreAndSpuReply{}, nil
+}

@@ -42,10 +42,10 @@ func newReviewInfo(db *gorm.DB, opts ...gen.DOOption) reviewInfo {
 	_reviewInfo.ExpressScore = field.NewInt32(tableName, "express_score")
 	_reviewInfo.HasMedia = field.NewInt32(tableName, "has_media")
 	_reviewInfo.OrderID = field.NewInt64(tableName, "order_id")
-	_reviewInfo.SkuID = field.NewInt64(tableName, "sku_id")
+	_reviewInfo.SkuID = field.NewString(tableName, "sku_id")
 	_reviewInfo.SpuID = field.NewInt64(tableName, "spu_id")
-	_reviewInfo.StoreID = field.NewInt64(tableName, "store_id")
-	_reviewInfo.UserID = field.NewInt64(tableName, "user_id")
+	_reviewInfo.StoreID = field.NewString(tableName, "store_id")
+	_reviewInfo.UserID = field.NewString(tableName, "user_id")
 	_reviewInfo.Anonymous = field.NewInt32(tableName, "anonymous")
 	_reviewInfo.Tags = field.NewString(tableName, "tags")
 	_reviewInfo.PicInfo = field.NewString(tableName, "pic_info")
@@ -71,8 +71,8 @@ type reviewInfo struct {
 
 	ALL            field.Asterisk
 	ID             field.Int64  // 主键
-	CreateBy       field.String // 创建⽅标识
-	UpdateBy       field.String // 更新⽅标识
+	CreateBy       field.String // 创建方标识
+	UpdateBy       field.String // 更新方标识
 	CreateAt       field.Time   // 创建时间
 	UpdateAt       field.Time   // 更新时间
 	DeleteAt       field.Time   // 逻辑删除标记
@@ -84,10 +84,10 @@ type reviewInfo struct {
 	ExpressScore   field.Int32  // 物流评分
 	HasMedia       field.Int32  // 是否有图或视频
 	OrderID        field.Int64  // 订单id
-	SkuID          field.Int64  // sku id
+	SkuID          field.String // sku id
 	SpuID          field.Int64  // spu id
-	StoreID        field.Int64  // 店铺id
-	UserID         field.Int64  // ⽤户id
+	StoreID        field.String // 店铺id
+	UserID         field.String // ⽤户id
 	Anonymous      field.Int32  // 是否匿名
 	Tags           field.String // 标签json
 	PicInfo        field.String // 媒体信息：图⽚
@@ -131,10 +131,10 @@ func (r *reviewInfo) updateTableName(table string) *reviewInfo {
 	r.ExpressScore = field.NewInt32(table, "express_score")
 	r.HasMedia = field.NewInt32(table, "has_media")
 	r.OrderID = field.NewInt64(table, "order_id")
-	r.SkuID = field.NewInt64(table, "sku_id")
+	r.SkuID = field.NewString(table, "sku_id")
 	r.SpuID = field.NewInt64(table, "spu_id")
-	r.StoreID = field.NewInt64(table, "store_id")
-	r.UserID = field.NewInt64(table, "user_id")
+	r.StoreID = field.NewString(table, "store_id")
+	r.UserID = field.NewString(table, "user_id")
 	r.Anonymous = field.NewInt32(table, "anonymous")
 	r.Tags = field.NewString(table, "tags")
 	r.PicInfo = field.NewString(table, "pic_info")

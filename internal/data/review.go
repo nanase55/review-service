@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	v1 "review-service/api/review/v1"
 	"review-service/internal/biz"
@@ -10,6 +11,8 @@ import (
 	"review-service/pkg/snowflake"
 	"strings"
 
+	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/sortorder"
 	"github.com/go-kratos/kratos/v2/log"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -208,7 +211,7 @@ func (r *reviewRepo) AuditAppeal(ctx context.Context, param *biz.AuditAppealPara
 }
 
 // ListReviewByUserID 根据userID查询所有评价
-func (r *reviewRepo) ListReviewByUserID(ctx context.Context, userID, lastID int64, limit int) ([]*model.ReviewInfo, error) {
+func (r *reviewRepo) ListReviewByUserID(ctx context.Context, userID string, lastID int64, limit int) ([]*model.ReviewInfo, error) {
 	query := r.data.q.ReviewInfo.WithContext(ctx).Where(r.data.q.ReviewInfo.UserID.Eq(userID))
 
 	// 如果有 lastID，筛选ID, 比lastID大跳过
@@ -216,6 +219,76 @@ func (r *reviewRepo) ListReviewByUserID(ctx context.Context, userID, lastID int6
 		query = query.Where(r.data.q.ReviewInfo.ID.Lt(lastID))
 	}
 
-	// 然后按最新的评价
+	// 然后按最新的评价排序结果,因为mysql查询出来的结果不一定是按主键顺序
 	return query.Order(r.data.q.ReviewInfo.ID.Desc()).Limit(limit).Find()
+}
+
+func (r *reviewRepo) ListReviewByStoreAndSpu(ctx context.Context, param *biz.ListReviewBySAndSParam) ([]*model.ReviewInfo, error) {
+	// 从es里查询结果,根据SortField字段排序
+	// 构造查询条件
+	query := &types.Query{
+		Bool: &types.BoolQuery{
+			Must: []types.Query{
+				{
+					Term: map[string]types.TermQuery{
+						"store_id": {Value: param.StoreId},
+					},
+				},
+				{
+					Term: map[string]types.TermQuery{
+						"spu_id": {Value: param.SpuId},
+					},
+				},
+			},
+		},
+	}
+
+	// 构造排序条件
+	sort := []types.SortCombinations{
+		types.SortOptions{
+			SortOptions: map[string]types.FieldSort{
+				param.SortField: {Order: &sortorder.SortOrder{Name: param.SortOrder}},
+			},
+		},
+		types.SortOptions{
+			SortOptions: map[string]types.FieldSort{
+				"review_id": {Order: &sortorder.SortOrder{Name: "desc"}},
+			},
+		},
+	}
+
+	// 构造 search_after 参数
+	var searchAfter []types.FieldValue
+	if param.LastId > 0 {
+		searchAfter = []types.FieldValue{
+			int64(param.LastSortValue),
+			param.LastId,
+		}
+	}
+
+	// 执行查询
+	res, err := r.data.esClient.Search().
+		Index(r.data.esClient.ReviewInfosIdx). // 指定索引名
+		Query(query).                          // 设置查询条件
+		Sort(sort...).                         // 设置排序条件
+		SearchAfter(searchAfter...).           // 设置 search_after 参数
+		Size(int(param.Size)).                 // 设置分页大小
+		Do(ctx)                                // 执行查询
+	if err != nil {
+		r.log.WithContext(ctx).Errorf("ListReviewByStoreAndSpu ES query failed: %v", err)
+		return nil, err
+	}
+
+	// 解析查询结果
+	var reviews []*model.ReviewInfo
+	for _, hit := range res.Hits.Hits {
+		var review *model.ReviewInfo
+		if err := json.Unmarshal(hit.Source_, &review); err != nil {
+			r.log.WithContext(ctx).Errorf("ListReviewByStoreAndSpu JSON unmarshal failed: %v", err)
+			return nil, err
+		}
+		reviews = append(reviews, review)
+	}
+
+	return reviews, nil
 }

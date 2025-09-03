@@ -13,8 +13,8 @@ const TableNameReviewInfo = "review_infos"
 // ReviewInfo 评价表
 type ReviewInfo struct {
 	ID             int64      `gorm:"column:id;primaryKey;autoIncrement:true;comment:主键" json:"id"`                            // 主键
-	CreateBy       string     `gorm:"column:create_by;not null;comment:创建⽅标识" json:"create_by"`                                // 创建⽅标识
-	UpdateBy       string     `gorm:"column:update_by;not null;comment:更新⽅标识" json:"update_by"`                                // 更新⽅标识
+	CreateBy       string     `gorm:"column:create_by;not null;comment:创建方标识" json:"create_by"`                                // 创建方标识
+	UpdateBy       string     `gorm:"column:update_by;not null;comment:更新方标识" json:"update_by"`                                // 更新方标识
 	CreateAt       time.Time  `gorm:"column:create_at;not null;default:CURRENT_TIMESTAMP;comment:创建时间" json:"create_at"`       // 创建时间
 	UpdateAt       time.Time  `gorm:"column:update_at;not null;default:CURRENT_TIMESTAMP;comment:更新时间" json:"update_at"`       // 更新时间
 	DeleteAt       *time.Time `gorm:"column:delete_at;comment:逻辑删除标记" json:"delete_at"`                                        // 逻辑删除标记
@@ -26,10 +26,10 @@ type ReviewInfo struct {
 	ExpressScore   int32      `gorm:"column:express_score;not null;comment:物流评分" json:"express_score"`                         // 物流评分
 	HasMedia       int32      `gorm:"column:has_media;not null;comment:是否有图或视频" json:"has_media"`                              // 是否有图或视频
 	OrderID        int64      `gorm:"column:order_id;not null;comment:订单id" json:"order_id"`                                   // 订单id
-	SkuID          int64      `gorm:"column:sku_id;not null;comment:sku id" json:"sku_id"`                                     // sku id
+	SkuID          string     `gorm:"column:sku_id;not null;comment:sku id" json:"sku_id"`                                     // sku id
 	SpuID          int64      `gorm:"column:spu_id;not null;comment:spu id" json:"spu_id"`                                     // spu id
-	StoreID        int64      `gorm:"column:store_id;not null;comment:店铺id" json:"store_id"`                                   // 店铺id
-	UserID         int64      `gorm:"column:user_id;not null;comment:⽤户id" json:"user_id"`                                     // ⽤户id
+	StoreID        string     `gorm:"column:store_id;not null;comment:店铺id" json:"store_id"`                                   // 店铺id
+	UserID         string     `gorm:"column:user_id;not null;comment:⽤户id" json:"user_id"`                                     // ⽤户id
 	Anonymous      int32      `gorm:"column:anonymous;not null;comment:是否匿名" json:"anonymous"`                                 // 是否匿名
 	Tags           string     `gorm:"column:tags;not null;comment:标签json" json:"tags"`                                         // 标签json
 	PicInfo        string     `gorm:"column:pic_info;not null;comment:媒体信息：图⽚" json:"pic_info"`                                // 媒体信息：图⽚

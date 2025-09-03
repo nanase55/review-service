@@ -19,7 +19,8 @@ type ReviewRepo interface {
 	AuditReview(context.Context, *AuditParam) error
 	AppealReview(context.Context, *AppealParam) (*model.ReviewAppealInfo, error)
 	AuditAppeal(context.Context, *AuditAppealParam) error
-	ListReviewByUserID(ctx context.Context, userID, offset int64, limit int) ([]*model.ReviewInfo, error)
+	ListReviewByUserID(context.Context, string, int64, int) ([]*model.ReviewInfo, error)
+	ListReviewByStoreAndSpu(context.Context, *ListReviewBySAndSParam) ([]*model.ReviewInfo, error)
 }
 
 type ReviewUsecase struct {
@@ -55,7 +56,9 @@ func (r *ReviewUsecase) CreateReview(ctx context.Context, review *model.ReviewIn
 	review.ReviewID = snowflake.GenId()
 
 	// 调用其他服务获取信息
-	review.StoreID = 1
+	review.StoreID = "1"
+	review.SpuID = 1
+	review.SkuID = "1"
 
 	if err := r.repo.SaveReview(ctx, review); err != nil {
 		return nil, err
@@ -105,8 +108,14 @@ func (uc ReviewUsecase) AuditAppeal(ctx context.Context, param *AuditAppealParam
 }
 
 // ListReviewByUserID 根据userID分页查询评价
-func (uc ReviewUsecase) ListReviewByUserID(ctx context.Context, userID, lastId int64, size int) ([]*model.ReviewInfo, error) {
+func (uc ReviewUsecase) ListReviewByUserID(ctx context.Context, userID string, lastId int64, size int) ([]*model.ReviewInfo, error) {
 	uc.log.WithContext(ctx).Debugf("[biz] ListReviewByUserID userID:%v", userID)
 
 	return uc.repo.ListReviewByUserID(ctx, userID, lastId, size)
+}
+
+func (uc ReviewUsecase) ListReviewByStoreAndSpu(ctx context.Context, param *ListReviewBySAndSParam) ([]*model.ReviewInfo, error) {
+	uc.log.WithContext(ctx).Debugf("[biz] ListReviewByStoreAndSpu StoreId:%d,SpuId:%d", param.StoreId, param.SpuId)
+
+	return uc.repo.ListReviewByStoreAndSpu(ctx, param)
 }
