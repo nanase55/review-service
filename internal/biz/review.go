@@ -51,6 +51,9 @@ func (r *ReviewUsecase) CreateReview(ctx context.Context, review *model.ReviewIn
 
 	// 1.2 拼装数据
 	review.Status = 10
+	if review.PicInfo != "" || review.VideoInfo != "" {
+		review.HasMedia = 1
+	}
 
 	// 生成review Id (雪花算法 或 "分布式Id生成服务")
 	review.ReviewID = snowflake.GenId()

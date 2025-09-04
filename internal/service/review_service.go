@@ -176,6 +176,9 @@ func (s *ReviewService) ListReviewByStoreAndSpu(ctx context.Context, req *pb.Lis
 		Size:          req.GetSize(),
 		SortOrder:     req.GetSortOrder(),
 		SortField:     req.GetSortField(),
+		HasMedia:      req.GetHasMedia(),
+		HasReply:      req.GetHasReply(),
+		KeyWords:      req.GetKeywords(),
 	})
 	if err != nil {
 		return nil, err

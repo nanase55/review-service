@@ -47,4 +47,7 @@ type ListReviewBySAndSParam struct {
 	LastSortValue int32  // 上一页最后一条记录的分数，用于分页
 	SortField     string // 排序字段，"score" "service_score" "express_score"
 	SortOrder     string // 排序顺序，例如 "asc" 或 "desc"
+	HasMedia      int32
+	HasReply      int32
+	KeyWords      string // 关键词
 }

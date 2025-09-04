@@ -232,9 +232,21 @@ func (r *reviewRepo) ListReviewByUserID(ctx context.Context, userID string, last
 
 func (r *reviewRepo) ListReviewByStoreAndSpu(ctx context.Context, param *biz.ListReviewBySAndSParam) ([]*model.ReviewInfo, error) {
 	// 1. 先查缓存
-	queryHash := fmt.Sprintf(`{"store_id":"%s","spu_id":%d,"sort_field":"%s","sort_order":"%s","last_sort_value":%d,"last_id":%d,"size":%d}`,
-		param.StoreId, param.SpuId, param.SortField, param.SortOrder, param.LastSortValue, param.LastId, param.Size,
+	// Json字符串序列化后作为key,反序列化时方便调试查看
+	queryHash := fmt.Sprintf(
+		`{"store_id":"%s","spu_id":%d,"sort_field":"%s","sort_order":"%s","last_sort_value":%d,"last_id":%d,"size":%d,"has_media":%v,"has_reply:%v","keywords:%s"}`,
+		param.StoreId,
+		param.SpuId,
+		param.SortField,
+		param.SortOrder,
+		param.LastSortValue,
+		param.LastId,
+		param.Size,
+		param.HasMedia,
+		param.HasReply,
+		param.KeyWords,
 	)
+	r.log.Debugf("[data] ListReviewByStoreAndSpu 查redis key: %s", queryHash)
 	hash := md5.Sum([]byte(queryHash))
 	key := fmt.Sprintf("review:lrss:%x", hash)
 
@@ -284,7 +296,6 @@ func (r *reviewRepo) ListReviewByStoreAndSpu(ctx context.Context, param *biz.Lis
 }
 
 func (r *reviewRepo) getReviewByStoreAndSpuFromEs(ctx context.Context, param *biz.ListReviewBySAndSParam) (*types.HitsMetadata, error) {
-	// 从es里查询结果,根据SortField字段排序
 	// 构造查询条件
 	query := &types.Query{
 		Bool: &types.BoolQuery{
@@ -303,6 +314,35 @@ func (r *reviewRepo) getReviewByStoreAndSpuFromEs(ctx context.Context, param *bi
 		},
 	}
 
+	// 动态添加筛选条件
+	if param.HasMedia == 1 { // 是否有图
+		query.Bool.Filter = append(query.Bool.Filter, types.Query{
+			Term: map[string]types.TermQuery{
+				"has_media": {Value: param.HasMedia},
+			},
+		})
+	}
+
+	if param.HasReply == 1 { // 是否有商家回复
+		query.Bool.Filter = append(query.Bool.Filter, types.Query{
+			Term: map[string]types.TermQuery{
+				"has_reply": {Value: param.HasReply},
+			},
+		})
+	}
+
+	// 动态添加关键词搜索条件
+	if param.KeyWords != "" {
+		query.Bool.Must = append(query.Bool.Must, types.Query{
+			Match: map[string]types.MatchQuery{
+				"content": {
+					Query: param.KeyWords,
+				},
+			},
+		})
+	}
+
+	// ps: 下面的实现还有带商榷,需要根据业务组合
 	// 构造排序条件
 	sort := []types.SortCombinations{
 		types.SortOptions{
