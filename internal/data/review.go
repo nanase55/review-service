@@ -2,18 +2,23 @@ package data
 
 import (
 	"context"
+	"crypto/md5"
 	"encoding/json"
 	"errors"
+	"fmt"
 	v1 "review-service/api/review/v1"
 	"review-service/internal/biz"
 	"review-service/internal/data/model"
 	"review-service/internal/data/query"
 	"review-service/pkg/snowflake"
 	"strings"
+	"time"
 
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/sortorder"
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/redis/go-redis/v9"
+	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -21,6 +26,8 @@ import (
 type reviewRepo struct {
 	data *Data
 	log  *log.Helper
+
+	g singleflight.Group
 }
 
 func NewReviewRepo(data *Data, logger log.Logger) biz.ReviewRepo {
@@ -224,11 +231,64 @@ func (r *reviewRepo) ListReviewByUserID(ctx context.Context, userID string, last
 }
 
 func (r *reviewRepo) ListReviewByStoreAndSpu(ctx context.Context, param *biz.ListReviewBySAndSParam) ([]*model.ReviewInfo, error) {
+	// 1. 先查缓存
+	queryHash := fmt.Sprintf(`{"store_id":"%s","spu_id":%d,"sort_field":"%s","sort_order":"%s","last_sort_value":%d,"last_id":%d,"size":%d}`,
+		param.StoreId, param.SpuId, param.SortField, param.SortOrder, param.LastSortValue, param.LastId, param.Size,
+	)
+	hash := md5.Sum([]byte(queryHash))
+	key := fmt.Sprintf("review:lrss:%x", hash)
+
+	data, err := r.data.redisClient.Get(ctx, key).Bytes()
+	if err != nil && err != redis.Nil {
+		return nil, err
+	}
+
+	hm := &types.HitsMetadata{}
+	// 2. 如果缓存未命中,使用单飞模式查es
+	if err == redis.Nil {
+		v, err, _ := r.g.Do(key, func() (any, error) {
+			return r.getReviewByStoreAndSpuFromEs(ctx, param)
+		})
+		if err != nil {
+			return nil, err
+		}
+		hm = v.(*types.HitsMetadata)
+
+		value, err := json.Marshal(hm)
+		if err != nil {
+			r.log.Warn("序列化es查询返回值失败")
+		} else {
+			if err := r.data.redisClient.Set(ctx, key, value, time.Second*30).Err(); err != nil {
+				r.log.Warnf("redis缓存 key=%v 失败,", key)
+			}
+		}
+	} else {
+		// 缓存命中,解析数据
+		if err := json.Unmarshal(data, hm); err != nil {
+			return nil, err
+		}
+	}
+
+	// 3. 解析查询结果
+	var reviews []*model.ReviewInfo
+	for _, hit := range hm.Hits {
+		var review *model.ReviewInfo
+		if err := json.Unmarshal(hit.Source_, &review); err != nil {
+			r.log.WithContext(ctx).Errorf("ListReviewByStoreAndSpu JSON unmarshal failed: %v", err)
+			return nil, err
+		}
+		reviews = append(reviews, review)
+	}
+
+	return reviews, nil
+}
+
+func (r *reviewRepo) getReviewByStoreAndSpuFromEs(ctx context.Context, param *biz.ListReviewBySAndSParam) (*types.HitsMetadata, error) {
 	// 从es里查询结果,根据SortField字段排序
 	// 构造查询条件
 	query := &types.Query{
 		Bool: &types.BoolQuery{
-			Must: []types.Query{
+			Filter: []types.Query{
 				{
 					Term: map[string]types.TermQuery{
 						"store_id": {Value: param.StoreId},
@@ -259,7 +319,9 @@ func (r *reviewRepo) ListReviewByStoreAndSpu(ctx context.Context, param *biz.Lis
 
 	// 构造 search_after 参数
 	var searchAfter []types.FieldValue
-	if param.LastId > 0 {
+	// 如果是第一次查询,不带 searchAfter 参数,默认从0查询size条数据
+	// 判断是否同时传入,避免0值影响结果
+	if param.LastId > 0 && param.LastSortValue > 0 {
 		searchAfter = []types.FieldValue{
 			int64(param.LastSortValue),
 			param.LastId,
@@ -279,16 +341,5 @@ func (r *reviewRepo) ListReviewByStoreAndSpu(ctx context.Context, param *biz.Lis
 		return nil, err
 	}
 
-	// 解析查询结果
-	var reviews []*model.ReviewInfo
-	for _, hit := range res.Hits.Hits {
-		var review *model.ReviewInfo
-		if err := json.Unmarshal(hit.Source_, &review); err != nil {
-			r.log.WithContext(ctx).Errorf("ListReviewByStoreAndSpu JSON unmarshal failed: %v", err)
-			return nil, err
-		}
-		reviews = append(reviews, review)
-	}
-
-	return reviews, nil
+	return &res.Hits, nil
 }

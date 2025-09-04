@@ -9,36 +9,40 @@ import (
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/wire"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
 // ProviderSet is data providers.
-var ProviderSet = wire.NewSet(NewData, NewDB, NewReviewRepo, NewESClient)
+var ProviderSet = wire.NewSet(NewData, NewDB, NewReviewRepo, NewESClient, NewRedisClient)
 
 // Data .
 type Data struct {
 	// TODO wrapped database client
 	// db *gorm.DB	不需要这个
-	q        *query.Query
-	log      *log.Helper
-	esClient *ESClient // ES client
+	q           *query.Query
+	log         *log.Helper
+	esClient    *ESClient // ES client
+	redisClient *redis.Client
 }
 
 // NewData .
-func NewData(db *gorm.DB, logger log.Logger, es *ESClient) (*Data, func(), error) {
+func NewData(db *gorm.DB, logger log.Logger, es *ESClient, rdb *redis.Client) (*Data, func(), error) {
 	cleanup := func() {
 		log.NewHelper(logger).Info("closing the data resources")
+		rdb.Close()
 	}
 
 	// 非常重要!为GEN生成的query代码设置数据库连接对象
 	query.SetDefault(db)
 
 	return &Data{
-		q:        query.Q, // query包下的Q
-		log:      log.NewHelper(logger),
-		esClient: es,
+		q:           query.Q, // query包下的Q
+		log:         log.NewHelper(logger),
+		esClient:    es,
+		redisClient: rdb,
 	}, cleanup, nil
 }
 
@@ -79,4 +83,12 @@ func NewESClient(cfg *conf.Elasticsearch) (*ESClient, error) {
 		ReviewReplyIdx:  cfg.ReviewReplyIndex,
 		ReviewAppealIdx: cfg.ReviewAppealIndex,
 	}, nil
+}
+
+func NewRedisClient(cfg *conf.Data) *redis.Client {
+	return redis.NewClient(&redis.Options{
+		Addr:         cfg.Redis.Addr,
+		WriteTimeout: cfg.Redis.WriteTimeout.AsDuration(),
+		ReadTimeout:  cfg.Redis.ReadTimeout.AsDuration(),
+	})
 }

@@ -115,7 +115,7 @@ func (uc ReviewUsecase) ListReviewByUserID(ctx context.Context, userID string, l
 }
 
 func (uc ReviewUsecase) ListReviewByStoreAndSpu(ctx context.Context, param *ListReviewBySAndSParam) ([]*model.ReviewInfo, error) {
-	uc.log.WithContext(ctx).Debugf("[biz] ListReviewByStoreAndSpu StoreId:%d,SpuId:%d", param.StoreId, param.SpuId)
+	uc.log.WithContext(ctx).Debugf("[biz] ListReviewByStoreAndSpu StoreId:%v,SpuId:%d", param.StoreId, param.SpuId)
 
 	return uc.repo.ListReviewByStoreAndSpu(ctx, param)
 }
