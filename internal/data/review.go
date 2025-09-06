@@ -18,6 +18,7 @@ import (
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/sortorder"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/redis/go-redis/v9"
+	"github.com/segmentio/kafka-go"
 	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -27,13 +28,15 @@ type reviewRepo struct {
 	data *Data
 	log  *log.Helper
 
-	g singleflight.Group
+	g    singleflight.Group
+	pool biz.WorkerPool
 }
 
-func NewReviewRepo(data *Data, logger log.Logger) biz.ReviewRepo {
+func NewReviewRepo(data *Data, logger log.Logger, pool biz.WorkerPool) biz.ReviewRepo {
 	return &reviewRepo{
 		data: data,
 		log:  log.NewHelper(logger),
+		pool: pool,
 	}
 }
 
@@ -246,7 +249,7 @@ func (r *reviewRepo) ListReviewByStoreAndSpu(ctx context.Context, param *biz.Lis
 		param.HasReply,
 		param.KeyWords,
 	)
-	r.log.Debugf("[data] ListReviewByStoreAndSpu 查redis key: %s", queryHash)
+	r.log.Debugf("ListReviewByStoreAndSpu 查redis key: %s", queryHash)
 	hash := md5.Sum([]byte(queryHash))
 	key := fmt.Sprintf("review:lrss:%x", hash)
 
@@ -382,4 +385,148 @@ func (r *reviewRepo) getReviewByStoreAndSpuFromEs(ctx context.Context, param *bi
 	}
 
 	return &res.Hits, nil
+}
+
+// PublishUpdateReviewEvent 发送更新评价事件
+func (r *reviewRepo) PublishUpdateReviewEvent(ctx context.Context, review *model.ReviewInfo) error {
+	r.log.WithContext(ctx).Debugf("PublishUpdateReviewEvent ReviewID: %v", review.ReviewID)
+
+	event := &biz.ReviewStatsEvent{
+		ReviewID: review.ReviewID,
+		StoreID:  review.StoreID,
+		SpuID:    review.SpuID,
+		Score:    review.Score,
+		HasMedia: review.HasMedia,
+	}
+	data, _ := json.Marshal(event)
+	// 最大重试次数
+	const maxRetries = 3
+	var err error
+
+	for i := range maxRetries {
+		err = r.data.mqClient.kafkaWriter.WriteMessages(ctx, kafka.Message{
+			Topic: r.data.mqClient.reviewStatusTopic,
+			Value: data,
+		})
+		if err == nil {
+			// 发送成功
+			return nil
+		}
+		r.log.WithContext(ctx).Warnf("PublishUpdateReviewEvent failed, retrying... (%d/%d), err: %v", i+1, maxRetries, err)
+		time.Sleep(time.Second * 2) // 重试间隔
+	}
+
+	// 如果重试失败，记录错误日志
+	r.log.WithContext(ctx).Errorf("PublishUpdateReviewEvent failed after %d retries, err: %v", maxRetries, err)
+	// 兜底机制: 加入DLQ队列
+	r.PublishDLQEvent(ctx, data)
+	return err
+}
+
+// PublishDLQEvent 发送事件到DLQ(Dead Letter Queue)
+func (r *reviewRepo) PublishDLQEvent(ctx context.Context, data []byte) {
+	r.log.WithContext(ctx).Warnf(" PublishDLQEvent")
+	// 最大重试次数
+	const maxRetries = 3
+	var err error
+
+	for i := range maxRetries {
+		err = r.data.mqClient.kafkaWriter.WriteMessages(ctx, kafka.Message{
+			Topic: r.data.mqClient.dlqTopic,
+			Value: data,
+		})
+		if err == nil {
+			// 发送成功
+			return
+		}
+		r.log.WithContext(ctx).Warnf("PublishUpdatePublishDLQEventReviewEvent failed, retrying... (%d/%d), err: %v", i+1, maxRetries, err)
+		time.Sleep(time.Second * 2) // 重试间隔
+	}
+
+	// 如果重试失败，记录错误日志
+	r.log.WithContext(ctx).Errorf("PublishDLQEvent failed after %d retries, err: %v", maxRetries, err)
+	// 再兜底,本地持久化
+}
+
+// ReadReviewMessage 读取消息
+func (r *reviewRepo) ReadReviewMessage(ctx context.Context) (*kafka.Message, error) {
+	msg, err := r.data.mqClient.kafkaReader.ReadMessage(ctx)
+	return &msg, err
+}
+
+// CommitReviewMessages 提交消息
+func (r *reviewRepo) CommitReviewMessages(ctx context.Context, msg *kafka.Message) error {
+	if msg.Topic == "" {
+		msg.Topic = r.data.mqClient.kafkaReader.Config().Topic
+	}
+	return r.data.mqClient.kafkaReader.CommitMessages(ctx, *msg)
+}
+
+func (r *reviewRepo) UpdateReviewStats(ctx context.Context, param *biz.ReviewStatsEvent) error {
+	var p_cnt, n_cnt int
+	if param.Score > 3 {
+		p_cnt = 1
+	} else if param.Score < 3 {
+		n_cnt = 1
+	}
+
+	err := r.data.q.Transaction(func(tx *query.Query) error {
+		// 使用原生 SQL 执行 UPSERT，性能最优
+		sql := `
+            INSERT INTO review_stats (store_id, spu_id, total_count, avg_score, positive_rate, negative_rate, has_media_rate, update_at)
+            VALUES (?, ?, 1, ?, ?, ?, ?, NOW())
+            ON DUPLICATE KEY UPDATE
+                total_count = total_count + 1,
+                avg_score = (avg_score * total_count + VALUES(avg_score)) / (total_count + 1),
+                positive_rate = (positive_rate * total_count + VALUES(positive_rate)) / (total_count + 1),
+                negative_rate = (negative_rate * total_count + VALUES(negative_rate)) / (total_count + 1),
+                has_media_rate = (has_media_rate * total_count + VALUES(has_media_rate)) / (total_count + 1),
+                update_at = NOW()
+        `
+
+		// 获取事务中的 gorm.DB 实例
+		db := tx.ReviewInfo.WithContext(ctx).UnderlyingDB()
+		if err := db.Exec(sql,
+			param.StoreID, param.SpuID,
+			param.Score, float64(p_cnt), float64(n_cnt), float64(param.HasMedia),
+		).Error; err != nil {
+			r.log.WithContext(ctx).Errorf("UpdateReviewStats failed, err: %v", err)
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	// 异步更新 Redis 缓存，避免阻塞主流程
+	r.pool.Submit(func() {
+		cacheKey := fmt.Sprintf("review_stats:%s:%d", param.StoreID, param.SpuID)
+		if err := r.data.redisClient.Del(context.Background(), cacheKey).Err(); err != nil {
+			r.log.Warnf("Failed to clear Redis cache for key: %s, err: %v", cacheKey, err)
+		}
+	})
+
+	return nil
+}
+
+// SetRedis 实现 Redis 的 set命令
+func (r *reviewRepo) SetRedis(ctx context.Context, key string, value any) error {
+	if err := r.data.redisClient.Set(ctx, key, value, 30*time.Second).Err(); err != nil {
+		r.log.WithContext(ctx).Errorf("SetRedis failed, key: %s, err: %v", key, err)
+		return err
+	}
+	return nil
+}
+
+// ExistsRedis 判断 Redis 是否存在 key
+func (r *reviewRepo) ExistsRedis(ctx context.Context, key string) (bool, error) {
+	exists, err := r.data.redisClient.Exists(ctx, key).Result()
+	if err != nil {
+		r.log.WithContext(ctx).Errorf("ExistsRedis failed, key: %s, err: %v", key, err)
+		return false, err
+	}
+	return exists == 1, nil
 }

@@ -20,6 +20,7 @@ var (
 	ReviewAppealInfo *reviewAppealInfo
 	ReviewInfo       *reviewInfo
 	ReviewReplyInfo  *reviewReplyInfo
+	ReviewStat       *reviewStat
 )
 
 func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
@@ -27,6 +28,7 @@ func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 	ReviewAppealInfo = &Q.ReviewAppealInfo
 	ReviewInfo = &Q.ReviewInfo
 	ReviewReplyInfo = &Q.ReviewReplyInfo
+	ReviewStat = &Q.ReviewStat
 }
 
 func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
@@ -35,6 +37,7 @@ func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 		ReviewAppealInfo: newReviewAppealInfo(db, opts...),
 		ReviewInfo:       newReviewInfo(db, opts...),
 		ReviewReplyInfo:  newReviewReplyInfo(db, opts...),
+		ReviewStat:       newReviewStat(db, opts...),
 	}
 }
 
@@ -44,6 +47,7 @@ type Query struct {
 	ReviewAppealInfo reviewAppealInfo
 	ReviewInfo       reviewInfo
 	ReviewReplyInfo  reviewReplyInfo
+	ReviewStat       reviewStat
 }
 
 func (q *Query) Available() bool { return q.db != nil }
@@ -54,6 +58,7 @@ func (q *Query) clone(db *gorm.DB) *Query {
 		ReviewAppealInfo: q.ReviewAppealInfo.clone(db),
 		ReviewInfo:       q.ReviewInfo.clone(db),
 		ReviewReplyInfo:  q.ReviewReplyInfo.clone(db),
+		ReviewStat:       q.ReviewStat.clone(db),
 	}
 }
 
@@ -71,6 +76,7 @@ func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 		ReviewAppealInfo: q.ReviewAppealInfo.replaceDB(db),
 		ReviewInfo:       q.ReviewInfo.replaceDB(db),
 		ReviewReplyInfo:  q.ReviewReplyInfo.replaceDB(db),
+		ReviewStat:       q.ReviewStat.replaceDB(db),
 	}
 }
 
@@ -78,6 +84,7 @@ type queryCtx struct {
 	ReviewAppealInfo IReviewAppealInfoDo
 	ReviewInfo       IReviewInfoDo
 	ReviewReplyInfo  IReviewReplyInfoDo
+	ReviewStat       IReviewStatDo
 }
 
 func (q *Query) WithContext(ctx context.Context) *queryCtx {
@@ -85,6 +92,7 @@ func (q *Query) WithContext(ctx context.Context) *queryCtx {
 		ReviewAppealInfo: q.ReviewAppealInfo.WithContext(ctx),
 		ReviewInfo:       q.ReviewInfo.WithContext(ctx),
 		ReviewReplyInfo:  q.ReviewReplyInfo.WithContext(ctx),
+		ReviewStat:       q.ReviewStat.WithContext(ctx),
 	}
 }
 

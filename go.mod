@@ -10,10 +10,10 @@ require (
 	github.com/envoyproxy/protoc-gen-validate v1.0.4
 	github.com/go-kratos/kratos/contrib/registry/consul/v2 v2.0.0-20250731084034-f7f150c3f139
 	github.com/go-kratos/kratos/v2 v2.8.4
-	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/google/wire v0.6.0
 	github.com/hashicorp/consul/api v1.32.1
 	github.com/redis/go-redis/v9 v9.13.0
+	github.com/segmentio/kafka-go v0.4.49
 	go.uber.org/automaxprocs v1.6.0
 	golang.org/x/sync v0.16.0
 	golang.org/x/time v0.12.0
@@ -54,14 +54,14 @@ require (
 	github.com/hashicorp/serf v0.10.1 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
+	github.com/klauspost/compress v1.15.9 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
-	github.com/onsi/ginkgo v1.16.5 // indirect
-	github.com/onsi/gomega v1.38.2 // indirect
+	github.com/pierrec/lz4/v4 v4.1.15 // indirect
 	go.opentelemetry.io/otel v1.28.0 // indirect
 	go.opentelemetry.io/otel/metric v1.28.0 // indirect
 	go.opentelemetry.io/otel/trace v1.28.0 // indirect

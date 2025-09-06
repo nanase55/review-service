@@ -10,13 +10,21 @@ import (
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/wire"
 	"github.com/redis/go-redis/v9"
+	"github.com/segmentio/kafka-go"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
 // ProviderSet is data providers.
-var ProviderSet = wire.NewSet(NewData, NewDB, NewReviewRepo, NewESClient, NewRedisClient)
+var ProviderSet = wire.NewSet(
+	NewData,
+	NewDB,
+	NewReviewRepo,
+	NewESClient,
+	NewRedisClient,
+	NewMQClient,
+)
 
 // Data .
 type Data struct {
@@ -24,15 +32,18 @@ type Data struct {
 	// db *gorm.DB	不需要这个
 	q           *query.Query
 	log         *log.Helper
-	esClient    *ESClient // ES client
+	esClient    *ESClient
 	redisClient *redis.Client
+	mqClient    *MQClient
 }
 
 // NewData .
-func NewData(db *gorm.DB, logger log.Logger, es *ESClient, rdb *redis.Client) (*Data, func(), error) {
+func NewData(db *gorm.DB, logger log.Logger, es *ESClient, rdb *redis.Client, mq *MQClient) (*Data, func(), error) {
 	cleanup := func() {
 		log.NewHelper(logger).Info("closing the data resources")
 		rdb.Close()
+		mq.kafkaReader.Close()
+		mq.kafkaWriter.Close()
 	}
 
 	// 非常重要!为GEN生成的query代码设置数据库连接对象
@@ -43,6 +54,7 @@ func NewData(db *gorm.DB, logger log.Logger, es *ESClient, rdb *redis.Client) (*
 		log:         log.NewHelper(logger),
 		esClient:    es,
 		redisClient: rdb,
+		mqClient:    mq,
 	}, cleanup, nil
 }
 
@@ -91,4 +103,31 @@ func NewRedisClient(cfg *conf.Data) *redis.Client {
 		WriteTimeout: cfg.Redis.WriteTimeout.AsDuration(),
 		ReadTimeout:  cfg.Redis.ReadTimeout.AsDuration(),
 	})
+}
+
+type MQClient struct {
+	kafkaReader       *kafka.Reader
+	kafkaWriter       *kafka.Writer
+	reviewStatusTopic string
+	dlqTopic          string
+}
+
+func NewMQClient(cfg *conf.Kafka) *MQClient {
+	reader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers: cfg.Brokers,
+		GroupID: cfg.GroupId,
+		Topic:   cfg.ReviewStatusTopic, // 读取消息时,无法动态指定topic,所以必须传入。并且提交时msg的topic必须一致
+	})
+
+	writer := kafka.NewWriter(kafka.WriterConfig{
+		Brokers: cfg.Brokers,
+		// topic不用设置,写入时依据mgs的topic
+	})
+
+	return &MQClient{
+		kafkaReader:       reader,
+		kafkaWriter:       writer,
+		reviewStatusTopic: cfg.ReviewStatusTopic,
+		dlqTopic:          "ReviewDLQ",
+	}
 }

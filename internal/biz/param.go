@@ -51,3 +51,12 @@ type ListReviewBySAndSParam struct {
 	HasReply      int32
 	KeyWords      string // 关键词
 }
+
+// 更新评论统计表
+type ReviewStatsEvent struct {
+	ReviewID int64  `json:"review_id"`
+	StoreID  string `json:"store_id"`
+	SpuID    int64  `json:"spu_id"`
+	Score    int32  `json:"score"`
+	HasMedia int32  `json:"has_media"`
+}

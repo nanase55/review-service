@@ -23,7 +23,7 @@ import (
 // Injectors from wire.go:
 
 // wireApp init kratos application.
-func wireApp(confServer *conf.Server, confData *conf.Data, registry *conf.Registry, elasticsearch *conf.Elasticsearch, logger log.Logger) (*kratos.App, func(), error) {
+func wireApp(confServer *conf.Server, confData *conf.Data, registry *conf.Registry, elasticsearch *conf.Elasticsearch, kafka *conf.Kafka, logger log.Logger) (*kratos.App, func(), error) {
 	db, err := data.NewDB(confData)
 	if err != nil {
 		return nil, nil, err
@@ -33,17 +33,20 @@ func wireApp(confServer *conf.Server, confData *conf.Data, registry *conf.Regist
 		return nil, nil, err
 	}
 	client := data.NewRedisClient(confData)
-	dataData, cleanup, err := data.NewData(db, logger, esClient, client)
+	mqClient := data.NewMQClient(kafka)
+	dataData, cleanup, err := data.NewData(db, logger, esClient, client, mqClient)
 	if err != nil {
 		return nil, nil, err
 	}
-	reviewRepo := data.NewReviewRepo(dataData, logger)
-	reviewUsecase := biz.NewReviewUsecase(reviewRepo, logger)
+	workerPool := server.NewWorkerPool(logger)
+	reviewRepo := data.NewReviewRepo(dataData, logger, workerPool)
+	reviewUsecase := biz.NewReviewUsecase(reviewRepo, logger, workerPool)
 	reviewService := service.NewReviewService(reviewUsecase, logger)
 	grpcServer := server.NewGRPCServer(confServer, reviewService, logger)
 	httpServer := server.NewHTTPServer(confServer, reviewService, logger)
 	registrar := server.NewRegistrar(registry)
-	app := newApp(logger, grpcServer, httpServer, registrar)
+	goroutineManager := server.NewGoroutineManager(logger, reviewUsecase)
+	app := newApp(logger, grpcServer, httpServer, registrar, workerPool, goroutineManager)
 	return app, func() {
 		cleanup()
 	}, nil

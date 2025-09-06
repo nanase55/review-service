@@ -26,3 +26,8 @@ elasticsearch:
   reviewInfos_index: "review_infos"
   reviewReply_index: "review_reply"
   reviewAppeal_index: "review_appeal"
+kafka:
+  brokers:
+    - "localhost:9092"
+  group_id: "review-service"
+  review_status_topic: "review_status"

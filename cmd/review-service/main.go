@@ -4,14 +4,15 @@ import (
 	"flag"
 	"os"
 
+	"review-service/internal/biz"
 	"review-service/internal/conf"
+	"review-service/internal/server"
 	"review-service/pkg/snowflake"
 
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/config"
 	"github.com/go-kratos/kratos/v2/config/file"
 	"github.com/go-kratos/kratos/v2/log"
-	"github.com/go-kratos/kratos/v2/middleware/tracing"
 	"github.com/go-kratos/kratos/v2/registry"
 	"github.com/go-kratos/kratos/v2/transport/grpc"
 	"github.com/go-kratos/kratos/v2/transport/http"
@@ -52,7 +53,7 @@ func createLog() *os.File {
 	return logFile
 }
 
-func newApp(logger log.Logger, gs *grpc.Server, hs *http.Server, r registry.Registrar) *kratos.App {
+func newApp(logger log.Logger, gs *grpc.Server, hs *http.Server, r registry.Registrar, wp biz.WorkerPool, gm *server.GoroutineManager) *kratos.App {
 	return kratos.New(
 		kratos.ID(id),
 		kratos.Name(Name),
@@ -62,6 +63,8 @@ func newApp(logger log.Logger, gs *grpc.Server, hs *http.Server, r registry.Regi
 		kratos.Server(
 			gs,
 			hs,
+			wp, // 协程池
+			gm, // 协程管理器
 		),
 		kratos.Registrar(r),
 	)
@@ -73,11 +76,11 @@ func main() {
 	logger := log.With(log.NewStdLogger(createLog()),
 		"ts", log.DefaultTimestamp,
 		"caller", log.DefaultCaller,
-		"service.id", id,
-		"service.name", Name,
-		"service.version", Version,
-		"trace.id", tracing.TraceID(),
-		"span.id", tracing.SpanID(),
+		// "service.id", id,
+		// "service.name", Name,
+		// "service.version", Version,
+		// "trace.id", tracing.TraceID(),
+		// "span.id", tracing.SpanID(),
 	)
 	c := config.New(
 		config.WithSource(
@@ -95,7 +98,7 @@ func main() {
 		panic(err)
 	}
 
-	app, cleanup, err := wireApp(bc.Server, bc.Data, bc.Registry, bc.Elasticsearch, logger)
+	app, cleanup, err := wireApp(bc.Server, bc.Data, bc.Registry, bc.Elasticsearch, bc.Kafka, logger)
 	if err != nil {
 		panic(err)
 	}
@@ -106,7 +109,6 @@ func main() {
 		panic(err)
 	}
 
-	// start and wait for stop signal
 	if err := app.Run(); err != nil {
 		panic(err)
 	}
